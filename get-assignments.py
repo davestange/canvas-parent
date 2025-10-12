@@ -1,12 +1,21 @@
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 auth_token = os.environ['CANVAS_AUTH_TOKEN']
 base_url = os.environ['CANVAS_BASE_URL']
 user_id = os.environ['CANVAS_USER_ID']
 
 format_string = "%Y-%m-%dT%H:%M:%SZ"
+
+classes = {
+    "Mind and Body Intro 1-P2-Weinberg": "Mind & Body", 
+    "English 1-P3-Brunson": "English", 
+    "Physics 1 NGSS-P1-Phan Mende": "Physics",
+    "Algebra 1-P2-Hervey": "Algebra",
+    "U.S. History Ethnic Studies-P4-Stegner": "History",
+    "German 1-P1-Wolfstone": "German",
+}
 
 class Assignment:
     def __init__(self, course, assignment, is_missing, is_submitted, is_late, is_graded, points, due_date):
@@ -30,11 +39,9 @@ class Assignment:
         due_in = self.get_days_ago()
         return f"due {-due_in.days} days ago" if due_in.days < 0 else f"due in {due_in.days} days"
 
-
-
 def get_assignments(class_name = None):
     start_date = "2025-08-25T00:00:00.000Z"
-    end_date = "2025-09-25T00:00:00.000Z"
+    end_date = (datetime.today() + timedelta(days=7)).strftime('%Y-%m-%dT00:00:00.000Z')
     url = f"{base_url}/api/v1/planner/items?start_date={start_date}&end_date={end_date}&include%5B%5D=account_calendars&include%5B%5D=all_courses&observed_user_id={user_id}&order=desc&per_page=1000"
     response = requests.get(url, headers={"Authorization":f"Bearer {auth_token}"})
 
@@ -44,12 +51,17 @@ def get_assignments(class_name = None):
 
     data = response.json()
 
+    with open("output/response.json", 'w') as f:
+        f.write(response.text)
+
     assignments = []
     for item in data:
         try:
             record_type = item['plannable_type']
             if record_type == "assignment":
                 course = item['context_name']
+                if course in classes:
+                    course = classes[course].ljust(12)
                 is_missing = item['submissions']['missing']
                 is_submitted = item['submissions']['submitted']
                 is_late = item['submissions']['late']
@@ -77,7 +89,7 @@ def show_missing(assignments):
     for a in assignments:
         if a.is_missing:
             count += 1
-            print(f" * [{a.get_points()}] {a.get_due_date()} in {a.course} - {a.assignment}")
+            print(f" 🔴 [{a.get_points()}] {a.get_due_date()} in {a.course} - {a.assignment}")
     print(f"Total Assignments: {count}")
     print("")
 
@@ -88,9 +100,35 @@ def show_pending(assignments):
     for a in assignments:
         if a.get_days_ago().days < 0 and not a.is_missing and not a.is_submitted and not a.is_graded:
             count += 1
-            print(f" * [{a.get_points()}] {a.get_due_date()} in {a.course} - {a.assignment}")
+            print(f" 🟡 [{a.get_points()}] {a.get_due_date()} in {a.course} - {a.assignment}")
     print(f"Total Assignments: {count}")
     print("")
+
+def show_grades(assignments, submitted=True, graded=True, missing=True, late=True):
+    for full_name in classes:
+        course = classes[full_name]
+        print(f"Class grades for {course}")
+        print("submitted  graded  missing  late  points  due date  assignment")
+        for a in assignments:
+            if a.course.strip() != course:
+                continue
+            if (not submitted and a.is_submitted) or (not graded and a.is_graded) or (not missing and a.is_missing) or (not late and a.is_late):
+                continue
+            print(f"    {good(a.is_submitted).ljust(6)}  {good(a.is_graded).ljust(6)} {bad(a.is_missing).ljust(6)} {bad(a.is_late)}     {num(a.points, 3)}   {date(a.due_date)}  {a.assignment}")  
+        print("")
+
+def good(value):
+    return "✅" if value else "⚪" # ✅❌
+def bad(value):
+    return "❌" if value else "⚪" # ✅❌
+def str(value, length):
+    return value[:length] if len(value)>length else value.ljust(length)
+def date(value):
+    return value[2:10]
+def num(value, length):
+    if value is None:
+        return " " * length
+    return f"{int(value)}".ljust(length)
 
 def show_upcoming(assignments):
     print("The following assignments are UPCOMING:")
@@ -99,7 +137,7 @@ def show_upcoming(assignments):
     for a in assignments:
         if a.get_days_ago().days > 0:
             count += 1
-            print(f" * [{a.get_points()}] {a.get_due_date()} in {a.course} - {a.assignment}")
+            print(f" 🟢 [{a.get_points()}] {a.get_due_date()} in {a.course} - {a.assignment}")
     print(f"Total Assignments: {count}")
     print("")
 
@@ -120,9 +158,17 @@ def sort_by_due_date(a):
 def show_summary(assignments):
     print(f"Total Assignments: {len(assignments)}")
 
+filter_by = None
+
 assignments = get_assignments()
-show_missing(assignments)
-show_pending(assignments)
-show_upcoming(assignments)
-# show_summary(assignments)
-# show_all(assignments)
+if filter_by is not None:
+    print(f"💀💀💀 WARNING: Filtering by class={filter_by}\n")
+    assignments = [a for a in assignments if a.course.strip() == filter_by]
+
+just_grades = False
+if not just_grades:
+    show_missing(assignments)
+    show_pending(assignments)
+    show_upcoming(assignments)
+else:
+    show_grades(assignments, submitted=False, graded=False)
