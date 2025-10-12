@@ -1,6 +1,7 @@
 import os
 import requests
 from datetime import datetime, timedelta
+import argparse  # <-- Add this import
 
 auth_token = os.environ['CANVAS_AUTH_TOKEN']
 base_url = os.environ['CANVAS_BASE_URL']
@@ -51,7 +52,7 @@ def get_assignments(class_name = None):
 
     data = response.json()
 
-    with open("output/response.json", 'w') as f:
+    with open("data/response.json", 'w') as f:
         f.write(response.text)
 
     assignments = []
@@ -158,17 +159,23 @@ def sort_by_due_date(a):
 def show_summary(assignments):
     print(f"Total Assignments: {len(assignments)}")
 
-filter_by = None
+def main():
+    parser = argparse.ArgumentParser(description="Canvas Assignments Viewer")
+    parser.add_argument('--view', choices=['original', 'grade'], default='original', help='View type: original or grade')
+    args = parser.parse_args()
 
-assignments = get_assignments()
-if filter_by is not None:
-    print(f"💀💀💀 WARNING: Filtering by class={filter_by}\n")
-    assignments = [a for a in assignments if a.course.strip() == filter_by]
+    filter_by = None
+    assignments = get_assignments()
+    if filter_by is not None:
+        print(f"💀💀💀 WARNING: Filtering by class={filter_by}\n")
+        assignments = [a for a in assignments if a.course.strip() == filter_by]
 
-just_grades = False
-if not just_grades:
-    show_missing(assignments)
-    show_pending(assignments)
-    show_upcoming(assignments)
-else:
-    show_grades(assignments, submitted=False, graded=False)
+    if args.view == 'original':
+        show_missing(assignments)
+        show_pending(assignments)
+        show_upcoming(assignments)
+    else:
+        show_grades(assignments)
+
+if __name__ == "__main__":
+    main()
