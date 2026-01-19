@@ -129,8 +129,10 @@ def show_pending(assignments):
     print(f"Total Assignments: {count}")
     print("")
 
-def show_grades(assignments, submitted=True, graded=True, missing=True, late=True):
+def show_grades(assignments, submitted=True, graded=True, missing=True, late=True, filter_by=None):
     for full_name in classes:
+        if filter_by and filter_by not in full_name:
+            continue
         course = classes[full_name]
         print(f"Class grades for {course} ({full_name})")
         print("submitted  graded  missing  late  score  points  due date  assignment")
@@ -224,10 +226,11 @@ def show_summary(assignments):
 
 def main():
     parser = argparse.ArgumentParser(description="Canvas Assignments Viewer")
-    parser.add_argument('--view', choices=['original', 'grade'], default='original', help='View type: original or grade')
+    parser.add_argument('--view', choices=['original', 'grade'], help='View type: original or grade')
+    parser.add_argument('--course_name', help='Filter assignments by course name (exact match after stripping)')
     args = parser.parse_args()
 
-    filter_by = None
+    filter_by = args.course_name.strip() if args.course_name is not None else None
     assignments = get_assignments()
     assignments = filter_ignore_list(assignments)
     assignments = get_grades(assignments)
@@ -240,7 +243,7 @@ def main():
         show_pending(assignments)
         show_upcoming(assignments)
     else:
-        show_grades(assignments)
+        show_grades(assignments, filter_by=filter_by)
 
 if __name__ == "__main__":
     main()
