@@ -142,29 +142,32 @@ def show_grades(assignments, submitted=True, graded=True, missing=True, late=Tru
         course = classes[full_name]
         print(f"Class grades for {course} ({full_name})")
         print("submitted  graded  missing  late  score  points  due date  assignment")
-        total_points = 0
-        total_score = 0
-        missing_points = 0
-        for a in assignments:
-            if a.course.strip() != course:
-                continue
-            # if (not submitted and a.is_submitted) or (not graded and a.is_graded) or (not missing and a.is_missing) or (not late and a.is_late):
-            #     continue
-            assn_counts = a.points is not None and a.is_graded
-            print(f"    {good(a.is_submitted).ljust(6)}  {good(a.is_graded).ljust(6)} {bad(a.is_missing).ljust(6)} {bad(a.is_late)}  {num(a.score, 5)}  {num(a.points, 5)}    {date(a.due_date)}  {a.assignment}")  
-            # if a.is_graded:
-            # total_points += a.points if a.points is not None else 0
-            # total_score += a.score if a.score is not None else 0
-            total_points += a.points if assn_counts else 0
-            total_score += a.score if assn_counts and a.score is not None else 0
-            if a.is_graded and a.is_missing:
-                missing_points += a.points if a.points is not None else 0
-        grade = 0 if total_points == 0 else 100*total_score/total_points
-        missing_grade = 0 if total_points == 0 else 100*(total_score+missing_points)/total_points
-        print(f"                          total:  {num(total_score, 5)}  {num(total_points, 5)}")
-        print(f"                          grade:   {grade:0.2f}")
-        print(f"                 missing points:   {missing_points:0.2f}")
-        print(f"                potential grade:   {missing_grade:0.2f}")
+        course_assignments = [a for a in assignments if a.course.strip() == course]
+        for a in course_assignments:
+            print(f"    {good(a.is_submitted).ljust(6)}  {good(a.is_graded).ljust(6)} {bad(a.is_missing).ljust(6)} {bad(a.is_late)}  {num(a.score, 5)}  {num(a.points, 5)}    {date(a.due_date)}  {a.assignment}")
+
+        # Totals for three categories: graded, graded and missing, all assignments
+        def safe_points(x):
+            return x.points if x.points is not None else 0
+        def safe_score(x):
+            return x.score if x.score is not None else 0
+
+        graded_points = sum(safe_points(a) for a in course_assignments if a.is_graded)
+        graded_score = sum(safe_score(a) for a in course_assignments if a.is_graded)
+
+        graded_missing_points = sum(safe_points(a) for a in course_assignments if (a.is_graded or a.is_missing))
+        graded_missing_score = sum(safe_score(a) for a in course_assignments if (a.is_graded or a.is_missing))
+
+        all_points = sum(safe_points(a) for a in course_assignments)
+        all_score = sum(safe_score(a) for a in course_assignments)
+
+        def pct(score, points):
+            return 0.0 if points == 0 else 100.0 * score / points
+
+        # Print aligned summary lines matching the score/points columns
+        print(f"                        graded:  {num(graded_score,5)}  {num(graded_points,5)}   {pct(graded_score, graded_points):6.2f}%")
+        print(f"            graded and missing:  {num(graded_missing_score,5)}  {num(graded_missing_points,5)}   {pct(graded_missing_score, graded_missing_points):6.2f}%")
+        print(f"               all assignments:  {num(all_score,5)}  {num(all_points,5)}   {pct(all_score, all_points):6.2f}%")
         print("")
 
 def good(value):
