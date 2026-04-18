@@ -141,10 +141,20 @@ def show_grades(assignments, submitted=True, graded=True, missing=True, late=Tru
             continue
         course = classes[full_name]
         print(f"Class grades for {course} ({full_name})")
-        print("submitted  graded  missing  late  score  points  due date  assignment")
+        print("submitted  graded  missing  late  score  points  due date ❗ assignment")
         course_assignments = [a for a in assignments if a.course.strip() == course]
+        # determine flagged missing assignments (top 2-5 by points)
+        missing_assignments = [a for a in course_assignments if a.is_missing]
+        if len(missing_assignments) >= 2:
+            n_flag = min(5, len(missing_assignments))
+        else:
+            n_flag = len(missing_assignments)
+        missing_sorted = sorted(missing_assignments, key=lambda x: (x.points or 0), reverse=True)
+        flagged = set(missing_sorted[:n_flag])
+
         for a in course_assignments:
-            print(f"    {good(a.is_submitted).ljust(6)}  {good(a.is_graded).ljust(6)} {bad(a.is_missing).ljust(6)} {bad(a.is_late)}  {num(a.score, 5)}  {num(a.points, 5)}    {date(a.due_date)}  {a.assignment}")
+            flag_char = '❗' if a in flagged else '  '
+            print(f"    {good(a.is_submitted).ljust(6)}  {good(a.is_graded).ljust(6)} {bad(a.is_missing).ljust(6)} {bad(a.is_late)}  {num(a.score, 5)}  {num(a.points, 5)}    {date(a.due_date)} {flag_char} {a.assignment}")
 
         # Totals for three categories: graded, graded and missing, all assignments
         def safe_points(x):
@@ -161,12 +171,18 @@ def show_grades(assignments, submitted=True, graded=True, missing=True, late=Tru
         all_points = sum(safe_points(a) for a in course_assignments)
         all_score = sum(safe_score(a) for a in course_assignments)
 
+        # flagged missing points sum (these are the ones marked with ❗)
+        flagged_missing_points = sum(safe_points(a) for a in flagged) if flagged else 0
+
         def pct(score, points):
             return 0.0 if points == 0 else 100.0 * score / points
 
         # Print aligned summary lines matching the score/points columns
         print(f"                        graded:  {num(graded_score,5)}  {num(graded_points,5)}   {pct(graded_score, graded_points):6.2f}%")
         print(f"            graded and missing:  {num(graded_missing_score,5)}  {num(graded_missing_points,5)}   {pct(graded_missing_score, graded_missing_points):6.2f}%")
+        # graded and missing and flagged (❗): add flagged missing points to the score, keep points unchanged
+        flagged_score_with_missing = graded_missing_score + flagged_missing_points
+        print(f"     graded and missing and ❗:  {num(flagged_score_with_missing,5)}  {num(graded_missing_points,5)}   {pct(flagged_score_with_missing, graded_missing_points):6.2f}%")
         print(f"               all assignments:  {num(all_score,5)}  {num(all_points,5)}   {pct(all_score, all_points):6.2f}%")
         print("")
 
