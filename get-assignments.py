@@ -5,6 +5,9 @@ import requests
 from datetime import datetime, timedelta
 import argparse  # <-- Add this import
 
+# If True, apply a custom sort in `show_grades` (see spec in repository tasks)
+CUSTOM_SORT = True
+
 auth_token = os.environ['CANVAS_AUTH_TOKEN']
 base_url = os.environ['CANVAS_BASE_URL']
 user_id = os.environ['CANVAS_USER_ID']
@@ -143,6 +146,30 @@ def show_grades(assignments, submitted=True, graded=True, missing=True, late=Tru
         print(f"Class grades for {course} ({full_name})")
         print("submitted  graded  missing  late  score  points  due date ❗ assignment")
         course_assignments = [a for a in assignments if a.course.strip() == course]
+
+        # If CUSTOM_SORT is enabled, reorder records per the requested priority:
+        # 1) missing and not graded
+        # 2) missing and graded
+        # 3) graded and <= 50%
+        # 4) remaining graded
+        # 5) remaining records
+        if CUSTOM_SORT:
+            def pct(a):
+                try:
+                    if a.points and a.points > 0 and a.score is not None:
+                        return 100.0 * a.score / a.points
+                except Exception:
+                    pass
+                return None
+
+            group1 = [a for a in course_assignments if a.is_missing and not a.is_graded]
+            group2 = [a for a in course_assignments if a.is_missing and a.is_graded]
+            group3 = [a for a in course_assignments if a.is_graded and (pct(a) is not None and pct(a) <= 50.0)]
+            group4 = [a for a in course_assignments if a.is_graded and a not in group3 and a not in group2]
+            grouped = set(group1 + group2 + group3 + group4)
+            group5 = [a for a in course_assignments if a not in grouped]
+            course_assignments = group1 + group2 + group3 + group4 + group5
+
         # determine flagged missing assignments (top 2-5 by points)
         missing_assignments = [a for a in course_assignments if a.is_missing]
         if len(missing_assignments) >= 2:
